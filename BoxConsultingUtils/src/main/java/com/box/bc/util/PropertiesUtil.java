@@ -28,7 +28,11 @@ public class PropertiesUtil {
 		try {
 			logger.info("Properties File Name: " + fileName);
 			InputStream stream = (new PropertiesUtil()).getClass().getClassLoader().getResourceAsStream(fileName);//.getResourceAsStream(fileName);
-			properties.load(stream);
+			if(stream != null){
+				properties.load(stream);
+			}else{
+				logger.info("Did Not Find File with File Name: " + fileName);
+			}
 		} catch (IOException e) {
 			logger.error("ERROR: " + e.getMessage());
 		}finally{
