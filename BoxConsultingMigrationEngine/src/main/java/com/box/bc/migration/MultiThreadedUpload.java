@@ -14,6 +14,7 @@ import com.box.bc.exception.AuthorizationException;
 import com.box.bc.migration.metadata.IMetadataParser;
 import com.box.bc.migration.metadata.MetadataTemplateAndValues;
 import com.box.bc.migration.metadata.factory.MetadataParserFactory;
+import com.box.bc.migration.metadata.parser.CustomMetadata;
 import com.box.bc.migration.util.MemoryMonitor;
 import com.box.bc.util.FolderUtil;
 import com.box.bc.util.StopWatch;
@@ -26,7 +27,7 @@ import com.box.sdk.BoxFolder;
 public class MultiThreadedUpload extends Thread {
 	private static final long MINIMUM_LARGE_UPLOAD_SIZE = (30L*1024L*1024L); //30 MB
 
-	protected static File baseFolder = new File("C:/demo/large-upload");
+	protected static File baseFolder = new File("C:/demo/TEST-PARSING");
 	//protected static File baseFolder = new File("C:/Users/pmatte/Box Sync");
 	protected String topLevelFolder = "PM TEST FOLDER - Memory Eval";
 
@@ -41,12 +42,14 @@ public class MultiThreadedUpload extends Thread {
 	protected long msSpentCreatingFolders = 0L;
 
 	protected String currentAction = "";
-	//	protected Metadata meta = new Metadata();
+
 	protected IMetadataParser metadataParser = MetadataParserFactory.getMetadataParser();
 
 	protected long processingTime = 0L;
 
 	private int NUM_CONCURRENT_UPLOAD_THREADS=20;
+
+	private boolean doNotUploadMetadataFile=true;
 
 
 
@@ -100,7 +103,7 @@ public class MultiThreadedUpload extends Thread {
 
 				String lastAction = "";
 				if(mtu.getState().equals(State.TERMINATED)){
-					lastAction = " DURATION: " + (mtu.processingTime/1000) + " seconds (" + (mtu.processingTime/1000/60) + " minutes)";
+					lastAction = " DURATION: " + (mtu.processingTime/1000) + " seconds (" + (mtu.processingTime/1000/60) + " minutes " + mtu.processingTime/1000%60 + " seconds)";
 					lastAction += " FILE SIZE: " + getFileSizeOutput(mtu.bytesUploaded);
 				}else{
 					keepRunning = true;
@@ -148,7 +151,7 @@ public class MultiThreadedUpload extends Thread {
 			uploadFiles(getBaseBoxFolderId(),this.baseFile);
 			sw.stop();
 			this.processingTime  = sw.getElapsedTime();
-			logger.warn("Uploaded " + this.getName().trim() + " in " + (sw.getElapsedTime()/1000) + " seconds (" + (sw.getElapsedTime()/1000/60) + " minutes");
+			logger.warn("Uploaded " + this.getName().trim() + " in " + (sw.getElapsedTime()/1000) + " seconds (" + (sw.getElapsedTime()/1000/60) + " minutes)");
 		} catch (StopWatchException e) {
 
 		} catch (AuthorizationException e) {
@@ -190,6 +193,22 @@ public class MultiThreadedUpload extends Thread {
 			currentAction = "Before List Files " + baseFile2.getAbsolutePath();
 			File[] folderContents = baseFile2.listFiles();
 			currentAction = "After List Files " + baseFile2.getAbsolutePath();
+			
+			//TODO add logic to get any metadata files first, and load it
+			if(metadataParser.getFileNameFilter() != null){
+				File[] metadataFiles = baseFile2.listFiles(metadataParser.getFileNameFilter());
+				if(metadataFiles.length>1){
+					logger.warn("There are more than 1 Metadata Files in this directory.  This is not currently supported.");
+				}
+				
+				for(File metaFile : metadataFiles){
+					if(metadataParser.isMetadataFile(metaFile)){
+						metadataParser.load(metaFile);
+					}
+				}
+				
+			}
+			
 
 			for(File fileOrFolder : folderContents){
 				currentAction = "Before Directory Check " + baseFile2.getAbsolutePath();
@@ -197,8 +216,8 @@ public class MultiThreadedUpload extends Thread {
 					currentAction = "Start Recursion for " + fileOrFolder.getAbsolutePath();
 					uploadFiles(currentFolder.getID(),fileOrFolder);
 					currentAction = "End Recursion for " + fileOrFolder.getAbsolutePath();
-				}else if(metadataParser.isMetadataFile(fileOrFolder)){
-					metadataParser.load(fileOrFolder);
+				}else if(metadataParser.isMetadataFile(fileOrFolder) && doNotUploadMetadataFile){
+					logger.info("Skipping upload of " + fileOrFolder.getName() + " as it is a metadata file, and we are configured not to upload metadata files");;
 				}else{
 
 					try {
@@ -208,17 +227,12 @@ public class MultiThreadedUpload extends Thread {
 						BoxFile.Info createdFile = null;
 						if(fileOrFolder.length()>MINIMUM_LARGE_UPLOAD_SIZE){
 							currentAction = "Start Large File Upload for " + fileOrFolder.getAbsolutePath();
-							//currentFolder.uploadLargeFile(new FileInputStream(fileOrFolder), fileOrFolder.getName(), fileOrFolder.length());
 							createdFile = currentFolder.uploadLargeFile(new FileInputStream(fileOrFolder), fileOrFolder.getName(), fileOrFolder.length(), NUM_CONCURRENT_UPLOAD_THREADS, 5, TimeUnit.MINUTES);
-							//							URL url = BoxFolder.UPLOAD_SESSION_URL_TEMPLATE.build(currentFolder.getAPI().getBaseUploadURL());
-							//							LargeFileUploadRefactor lfu = new LargeFileUploadRefactor(NUM_CONCURRENT_UPLOAD_THREADS, 5, TimeUnit.MINUTES); 
-							//							createdFile = lfu.upload(currentFolder.getAPI(), currentFolder.getID(), new FileInputStream(fileOrFolder), url, fileOrFolder.getName(), fileOrFolder.length());
 							currentAction = "End Large File Upload for " + fileOrFolder.getAbsolutePath();
 						}else{
 							currentAction = "Start Normal File Upload for " + fileOrFolder.getAbsolutePath();
 							createdFile = currentFolder.uploadFile(new FileInputStream(fileOrFolder), fileOrFolder.getName());
 							currentAction = "End Normal File Upload for " + fileOrFolder.getAbsolutePath();
-
 						}
 
 						if(createdFile != null){
@@ -257,11 +271,13 @@ public class MultiThreadedUpload extends Thread {
 
 	protected void applyMetadataTemplateAndVals(Info createdFile,
 			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
+		logger.info("Start applyMetadataTemplateAndVals to " + createdFile.getName());
 		if(metadataTemplateAndVals != null){
+			logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
 			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
 				//If a template name is specified, then create with the template
 				//otherwise, just add as custom metadata
-				if(templateAndVal.getMetadataTemplateName() != null && templateAndVal.getMetadataValues() != null){
+				if(templateAndVal.getMetadataTemplateName() != null && !templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && templateAndVal.getMetadataValues() != null){
 					createdFile.getResource().createMetadata(templateAndVal.getMetadataTemplateName(),
 							templateAndVal.getMetadataValues());
 				}else{
@@ -271,6 +287,7 @@ public class MultiThreadedUpload extends Thread {
 				}
 			}
 		}
+		logger.info("End applyMetadataTemplateAndVals");
 
 
 

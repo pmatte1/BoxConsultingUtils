@@ -1,10 +1,9 @@
 package com.box.bc.migration.metadata;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.box.sdk.Metadata;
 
 public class NoMetadataAppliedParser implements IMetadataParser {
 
@@ -30,6 +29,11 @@ public class NoMetadataAppliedParser implements IMetadataParser {
 	public void load(File metadataFile) {
 		// TODO Auto-generated method stub
 		
+	}
+
+	public FilenameFilter getFileNameFilter() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 
 }
