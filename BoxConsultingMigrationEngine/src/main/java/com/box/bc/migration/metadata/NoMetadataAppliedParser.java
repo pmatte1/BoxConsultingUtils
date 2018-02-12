@@ -5,6 +5,13 @@ import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * This implementation ensures no metadata is applied to any
+ * of the files or folders processed in the migration
+ * 
+ * @author pmatte
+ *
+ */
 public class NoMetadataAppliedParser implements IMetadataParser {
 
 	/**
@@ -16,7 +23,7 @@ public class NoMetadataAppliedParser implements IMetadataParser {
 	}
 
 	/**
-	 * This method will always return null, as there will not be any
+	 * This method will always return an empty list, as there will not be any
 	 * metadata applied with this implementation
 	 */
 	public List<MetadataTemplateAndValues> getMetadata(File file) {
@@ -27,10 +34,14 @@ public class NoMetadataAppliedParser implements IMetadataParser {
 	 * This is an empty method as no parsing is required
 	 */
 	public void load(File metadataFile) {
-		// TODO Auto-generated method stub
+		
 		
 	}
 
+	/**
+	 * This method always returns NULL since there will not be a 
+	 * metadata property file, since there is no metadata.
+	 */
 	public FilenameFilter getFileNameFilter() {
 		// TODO Auto-generated method stub
 		return null;

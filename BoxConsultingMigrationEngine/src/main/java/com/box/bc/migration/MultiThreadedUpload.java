@@ -25,13 +25,15 @@ import com.box.sdk.BoxFile.Info;
 import com.box.sdk.BoxFolder;
 
 public class MultiThreadedUpload extends Thread {
-	private static final long MINIMUM_LARGE_UPLOAD_SIZE = (30L*1024L*1024L); //30 MB
-
-	protected static File baseFolder = new File("C:/demo/TEST-PARSING");
-	//protected static File baseFolder = new File("C:/Users/pmatte/Box Sync");
-	protected String topLevelFolder = "PM TEST FOLDER - Memory Eval";
-
 	private static Logger logger = Logger.getLogger(MultiThreadedUpload.class);
+
+	private static final long MINIMUM_LARGE_UPLOAD_SIZE = (30L*1024L*1024L); //30 MB
+	protected static File baseFolder = new File("C:/demo/TEST-PARSING");
+	protected static String topLevelFolder = "PM TEST FOLDER - Memory Eval";
+	private static int NUM_CONCURRENT_UPLOAD_THREADS=20;
+	private boolean doNotUploadMetadataFile=true;
+
+	protected String baseBoxFolderId = null;
 	private boolean isRunning = false;
 	private File baseFile;
 
@@ -47,15 +49,9 @@ public class MultiThreadedUpload extends Thread {
 
 	protected long processingTime = 0L;
 
-	private int NUM_CONCURRENT_UPLOAD_THREADS=20;
-
-	private boolean doNotUploadMetadataFile=true;
-
-
 
 	public MultiThreadedUpload(String string) {
 		super(string);
-		//meta.add("/test1", "Test Value 1");
 	}
 
 	public static void main(String args[]){
@@ -71,15 +67,15 @@ public class MultiThreadedUpload extends Thread {
 
 		for(File topLevelFolder : topLevelFolders){
 			if(topLevelFolder.isDirectory()){
-				String threadNum = topLevelFolder.getName();
-				while(threadNum.length()<lengthOfLargestName){
-					threadNum += " ";
+				String threadName = topLevelFolder.getName();
+				while(threadName.length()<lengthOfLargestName){
+					threadName += " ";
 				}
 
-				MultiThreadedUpload mtu = new MultiThreadedUpload(threadNum);
+				MultiThreadedUpload mtu = new MultiThreadedUpload(threadName);
 				mtu.setBaseFile(topLevelFolder);
 				mtuList.add(mtu);
-				mtu.setName(threadNum);
+				mtu.setName(threadName);
 				mtu.start();
 			}
 		}
@@ -293,7 +289,6 @@ public class MultiThreadedUpload extends Thread {
 
 	}
 
-	String baseBoxFolderId = null;
 	protected synchronized String getBaseBoxFolderId() throws AuthorizationException {
 		if(baseBoxFolderId == null){
 			baseBoxFolderId =FolderUtil.getOrCreateFolder("0", this.topLevelFolder).getID(); 

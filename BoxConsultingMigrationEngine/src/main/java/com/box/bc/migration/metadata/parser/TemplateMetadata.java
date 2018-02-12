@@ -1,7 +1,20 @@
 package com.box.bc.migration.metadata.parser;
 
+/**
+ * Class to hold the Template Metadata.  It will get the
+ * Template Name from the header value with the naming convention
+ * <templatename>.<attributename>
+ * 
+ * @author pmatte
+ *
+ */
 public class TemplateMetadata extends HeaderParser{
 
+	/**
+	 * Constructor
+	 * 
+	 * @param headerName
+	 */
 	public TemplateMetadata(String headerName) {
 		super(headerName);
 	}
