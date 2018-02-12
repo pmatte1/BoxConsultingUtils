@@ -23,6 +23,7 @@ import com.box.sdk.BoxAPIException;
 import com.box.sdk.BoxFile;
 import com.box.sdk.BoxFile.Info;
 import com.box.sdk.BoxFolder;
+import com.box.sdk.BoxItem;
 
 public class MultiThreadedUpload extends Thread {
 	private static Logger logger = Logger.getLogger(MultiThreadedUpload.class);
@@ -50,12 +51,8 @@ public class MultiThreadedUpload extends Thread {
 	protected long processingTime = 0L;
 
 
-	public MultiThreadedUpload(String string) {
-		super(string);
-	}
-
 	public static void main(String args[]){
-
+	
 		List<MultiThreadedUpload> mtuList = new ArrayList<MultiThreadedUpload>();
 		File[] topLevelFolders = baseFolder.listFiles();
 		int lengthOfLargestName = 0;
@@ -64,14 +61,14 @@ public class MultiThreadedUpload extends Thread {
 				lengthOfLargestName=topLevelFolder.getName().length();
 			}
 		}
-
+	
 		for(File topLevelFolder : topLevelFolders){
 			if(topLevelFolder.isDirectory()){
 				String threadName = topLevelFolder.getName();
 				while(threadName.length()<lengthOfLargestName){
 					threadName += " ";
 				}
-
+	
 				MultiThreadedUpload mtu = new MultiThreadedUpload(threadName);
 				mtu.setBaseFile(topLevelFolder);
 				mtuList.add(mtu);
@@ -79,10 +76,10 @@ public class MultiThreadedUpload extends Thread {
 				mtu.start();
 			}
 		}
-
+	
 		MemoryMonitor memMon = new MemoryMonitor(1000);
 		memMon.start();
-
+	
 		//This section simply monitors the threads, and periodically outputs statistics for each thread
 		boolean keepRunning = true;
 		while(keepRunning){
@@ -91,12 +88,12 @@ public class MultiThreadedUpload extends Thread {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-
+	
 			keepRunning = false;
 			logger.warn("*************************************************************************************************");
-
+	
 			for(MultiThreadedUpload mtu : mtuList){
-
+	
 				String lastAction = "";
 				if(mtu.getState().equals(State.TERMINATED)){
 					lastAction = " DURATION: " + (mtu.processingTime/1000) + " seconds (" + (mtu.processingTime/1000/60) + " minutes " + mtu.processingTime/1000%60 + " seconds)";
@@ -109,33 +106,13 @@ public class MultiThreadedUpload extends Thread {
 			}
 			logger.warn("*************************************************************************************************");
 		}
-
+	
 		memMon.stopRunning();
-
+	
 	}
 
-	private static String getFileSizeOutput(long bytesUploaded2) {
-		int i=0;
-		String units = "";
-		while(bytesUploaded2>1024){
-			bytesUploaded2 = bytesUploaded2/1024;
-			i++;
-		}
-
-		switch (i){
-		case 0: units="bytes";
-		break;
-		case 1: units="KB";
-		break;
-		case 2: units="MB";
-		break;
-		case 3: units="GB";
-		break;
-		case 4: units="TB";
-		break;
-		}
-
-		return bytesUploaded2 + " " + units;
+	public MultiThreadedUpload(String string) {
+		super(string);
 	}
 
 	public void run(){
@@ -161,13 +138,7 @@ public class MultiThreadedUpload extends Thread {
 		isRunning=false;
 
 	}
-	public String getRateOfUpload() {
-		if(msSpentUploading == 0L){
-			return "Nothing Uploaded Yet";
-		}
-		return ((bytesUploaded/1024)/(msSpentUploading/1000)) + "kb per second";
-	}
-
+	
 	private void uploadFiles(String baseBoxFolderId, File baseFile2) {
 		StopWatch swFolderCreate = new StopWatch();
 		StopWatch swCreateFile = new StopWatch();
@@ -176,8 +147,6 @@ public class MultiThreadedUpload extends Thread {
 			swFolderCreate.start();
 			currentAction = "Before FolderUtil.getOrCreateFolder " + baseFile2.getAbsolutePath();
 			BoxFolder currentFolder = FolderUtil.getOrCreateFolder(baseBoxFolderId, baseFile2.getName());
-
-			//currentFolder.createMetadata("demoTestTemplate",)
 			currentAction = "After FolderUtil.getOrCreateFolder " + baseFile2.getAbsolutePath();
 			try{
 				swFolderCreate.stop();
@@ -186,11 +155,16 @@ public class MultiThreadedUpload extends Thread {
 			}catch(Exception e){}
 			currentAction = "After Updating Folder Metrics";
 
+			currentAction = "Adding Metadata - If Required";
+			applyMetadataTemplateAndVals(currentFolder, metadataParser.getMetadata(baseFile2));
+			currentAction = "Added Metadata - If Required";
+
+			
 			currentAction = "Before List Files " + baseFile2.getAbsolutePath();
 			File[] folderContents = baseFile2.listFiles();
 			currentAction = "After List Files " + baseFile2.getAbsolutePath();
 			
-			//TODO add logic to get any metadata files first, and load it
+			//Logic to get any metadata files first, and load it
 			if(metadataParser.getFileNameFilter() != null){
 				File[] metadataFiles = baseFile2.listFiles(metadataParser.getFileNameFilter());
 				if(metadataFiles.length>1){
@@ -268,27 +242,57 @@ public class MultiThreadedUpload extends Thread {
 	protected void applyMetadataTemplateAndVals(Info createdFile,
 			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
 		logger.info("Start applyMetadataTemplateAndVals to " + createdFile.getName());
-		if(metadataTemplateAndVals != null){
-			logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
-			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
-				//If a template name is specified, then create with the template
-				//otherwise, just add as custom metadata
-				if(templateAndVal.getMetadataTemplateName() != null && !templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && templateAndVal.getMetadataValues() != null){
-					createdFile.getResource().createMetadata(templateAndVal.getMetadataTemplateName(),
-							templateAndVal.getMetadataValues());
-				}else{
-					if(templateAndVal.getMetadataValues() != null){
-						createdFile.getResource().createMetadata(templateAndVal.getMetadataValues());
-					}
-				}
-			}
-		}
+		applyMetadataTemplateAndVals(createdFile.getResource(), metadataTemplateAndVals);
 		logger.info("End applyMetadataTemplateAndVals");
 
 
 
 	}
 
+	protected void applyMetadataTemplateAndVals(BoxFile createdFile,
+			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
+		if(metadataTemplateAndVals != null){
+			logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
+			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
+				//If a template name is specified, then create with the template
+				//otherwise, just add as custom metadata
+				if(templateAndVal.getMetadataTemplateName() != null && 
+						!templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && 
+						templateAndVal.getMetadataValues() != null){
+					createdFile.createMetadata(templateAndVal.getMetadataTemplateName(),
+							templateAndVal.getMetadataValues());
+				}else{
+					if(templateAndVal.getMetadataValues() != null){
+						createdFile.createMetadata(templateAndVal.getMetadataValues());
+					}
+				}
+			}
+		}
+		
+	}
+
+	protected void applyMetadataTemplateAndVals(BoxFolder createdFolder,
+			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
+		if(metadataTemplateAndVals != null){
+			logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
+			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
+				//If a template name is specified, then create with the template
+				//otherwise, just add as custom metadata
+				if(templateAndVal.getMetadataTemplateName() != null && 
+						!templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && 
+						templateAndVal.getMetadataValues() != null){
+					createdFolder.createMetadata(templateAndVal.getMetadataTemplateName(),
+							templateAndVal.getMetadataValues());
+				}else{
+					if(templateAndVal.getMetadataValues() != null){
+						createdFolder.createMetadata(templateAndVal.getMetadataValues());
+					}
+				}
+			}
+		}
+		
+	}
+	
 	protected synchronized String getBaseBoxFolderId() throws AuthorizationException {
 		if(baseBoxFolderId == null){
 			baseBoxFolderId =FolderUtil.getOrCreateFolder("0", this.topLevelFolder).getID(); 
@@ -308,6 +312,37 @@ public class MultiThreadedUpload extends Thread {
 
 	public void setRunning(boolean isRunning) {
 		this.isRunning = isRunning;
+	}
+
+	public String getRateOfUpload() {
+		if(msSpentUploading == 0L){
+			return "Nothing Uploaded Yet";
+		}
+		return ((bytesUploaded/1024)/(msSpentUploading/1000)) + "kb per second";
+	}
+
+	private static String getFileSizeOutput(long bytesUploaded2) {
+		int i=0;
+		String units = "";
+		while(bytesUploaded2>1024){
+			bytesUploaded2 = bytesUploaded2/1024;
+			i++;
+		}
+
+		switch (i){
+		case 0: units="bytes";
+		break;
+		case 1: units="KB";
+		break;
+		case 2: units="MB";
+		break;
+		case 3: units="GB";
+		break;
+		case 4: units="TB";
+		break;
+		}
+
+		return bytesUploaded2 + " " + units;
 	}
 
 
