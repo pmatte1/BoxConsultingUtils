@@ -36,7 +36,7 @@ public abstract class HeaderParser implements IMetadataNameValueParser {
 	 * 
 	 * @return String containing the name of the attribute
 	 */
-	protected abstract String getAttributeName();
+	public abstract String getAttributeName();
 
 	/**
 	 * Abstract method to make it compliant to the IMetadataNameValueParser interface

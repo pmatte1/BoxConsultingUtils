@@ -5,7 +5,7 @@ import org.apache.log4j.Logger;
 public class MemoryMonitor extends Thread {
 	private static Logger logger = Logger.getLogger(MemoryMonitor.class);
 
-	
+
 	private int frequency;
 	private boolean keepRunning=true;
 
@@ -17,21 +17,21 @@ public class MemoryMonitor extends Thread {
 			this.frequency=frequency;
 		}
 	}
-	
+
 	public void run(){
 		while(this.keepRunning){
-//			float fltUsedMemory = Runtime.getRuntime().totalMemory()-Runtime.getRuntime().freeMemory()/1024/1024;
-//			float fltTotalMemory = Runtime.getRuntime().totalMemory()/1024/1024;
-//			float fltMaxMemory = Runtime.getRuntime().maxMemory()/1024/1024;
 			MemoryStats memStats = new MemoryStats();
-			String output  = "";
-			for(float i=0; i<memStats.getPercentOfMax(); i++){
-				output += "*";
+			if(memStats.getPercentOfMax()>85){
+				logger.warn("Memory Utilization is >85%.  Currently at " + memStats.getPercentOfMax());
+			}else{
+				String output  = "";
+				for(float i=0; i<memStats.getPercentOfMax(); i++){
+					output += "*";
+				}
+				output = buffer(output, 100);
+
+				logger.info(output + "| (" + memStats.getUsed() + " of " + memStats.getMax() + " - "+ memStats.getPercentOfMax() + " %)");
 			}
-			output = buffer(output, 100);
-			
-			logger.info(output + "| (" + memStats.getUsed() + " of " + memStats.getMax() + " - "+ memStats.getPercentOfMax() + " %)");
-			//logger.warn("MEMORY STATS:" +  new Gson().toJson(memStats));
 
 			try {
 				Thread.sleep(frequency);
@@ -64,9 +64,9 @@ public class MemoryMonitor extends Thread {
 			this.setFree((Runtime.getRuntime().freeMemory())/1024/1024);
 			this.setPercentUsed((this.getUsed()/this.getTotal())*100);
 			this.setPercentOfMax((this.getUsed()/this.getMax())*100);
-	
+
 		}
-		
+
 		public float getUsed() {
 			return used;
 		}
@@ -105,14 +105,14 @@ public class MemoryMonitor extends Thread {
 		public void setPercentOfMax(float percentOfMax) {
 			this.percentOfMax = percentOfMax;
 		}
-		
-		
-		
+
+
+
 	}
 
 	public void stopRunning() {
 		this.keepRunning=false;
-		
+
 	}
 
 }
