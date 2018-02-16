@@ -147,16 +147,16 @@ public class MultiThreadedUpload extends Thread {
 
 	}
 
-	private void uploadFiles(String baseBoxFolderId, File baseFile2) {
+	protected void uploadFiles(String baseBoxFolderId, File baseFile2) {
 
-		while(((ThreadPoolExecutor)executor).getQueue().size()>= MAX_QUEUE_SIZE){
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				logger.warn(e.getMessage());
-			}
-		}
-		Thread thread = new UploadFilesAndFolders(this.getName() + "-" + new Date().getTime(),baseBoxFolderId, baseFile2, this.threadMetrics, this.executor, metadataParser);
+//		while(((ThreadPoolExecutor)executor).getQueue().size()>= MAX_QUEUE_SIZE){
+//			try {
+//				Thread.sleep(1000);
+//			} catch (InterruptedException e) {
+//				logger.warn(e.getMessage());
+//			}
+//		}
+		Thread thread = new UploadFilesAndFolders(this.getName() + "-" + new Date().getTime(),baseBoxFolderId, baseFile2, this.threadMetrics, executor, metadataParser);
 		executor.execute(thread);
 
 		try {
@@ -184,7 +184,7 @@ public class MultiThreadedUpload extends Thread {
 
 	protected synchronized String getBaseBoxFolderId() throws AuthorizationException {
 		if(baseBoxFolderId == null){
-			baseBoxFolderId =FolderUtil.getOrCreateFolder("0", this.topLevelFolder).getID(); 
+			baseBoxFolderId =FolderUtil.getOrCreateFolder("0", topLevelFolder).getID(); 
 		}
 		logger.info("Base Box Folder ID: " + baseBoxFolderId);
 		return baseBoxFolderId;
