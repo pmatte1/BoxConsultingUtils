@@ -21,6 +21,8 @@ import com.box.bc.migration.metadata.MetadataTemplateAndValues;
 import com.box.bc.migration.metadata.factory.MetadataParserFactory;
 import com.box.bc.migration.metadata.parser.CustomMetadata;
 import com.box.bc.migration.metrics.ThreadMetrics;
+import com.box.bc.migration.output.MigrationErrorObject;
+import com.box.bc.migration.output.MigrationOutputter;
 import com.box.bc.user.AppUserManager;
 import com.box.bc.util.FolderUtil;
 import com.box.bc.util.StopWatch;
@@ -41,7 +43,7 @@ public class UploadFilesAndFolders extends Thread {
 
 	private static final long MINIMUM_LARGE_UPLOAD_SIZE = (30L*1024L*1024L); //30 MB
 	private static int NUM_CONCURRENT_LARGE_UPLOAD_THREADS=20;
-	
+
 	private static boolean doNotUploadMetadataFile=true;
 
 	public UploadFilesAndFolders(String threadName, String baseBoxFolderId, File baseFile2, ThreadMetrics threadMetrics, ExecutorService executor, IMetadataParser metadataParser){
@@ -124,7 +126,6 @@ public class UploadFilesAndFolders extends Thread {
 			StopWatch swCreateFile = new StopWatch();
 
 			try {
-
 				BoxFolder currentFolder = new BoxFolder(AppUserManager.getInstance().getAppUser().getAPIConnection(), baseBoxFolderId);
 				swCreateFile.start();
 				this.threadMetrics.setCurrentAction("Start Upload for " + baseFile2.getAbsolutePath());
@@ -155,18 +156,12 @@ public class UploadFilesAndFolders extends Thread {
 				this.threadMetrics.setCurrentAction("Added addt'l upload time " + baseFile2.getAbsolutePath());
 
 				logger.info("Uploaded File in: " + swCreateFile.getElapsedTime() + "ms");
-			} catch (FileNotFoundException e) {
-				logger.error("Error Uploading " + baseFile2.getAbsolutePath() + ": " + e.getMessage());
-			} catch (StopWatchException e) {
-				logger.error(e.getMessage());
-			} catch (InterruptedException e) {
-				logger.error(e.getMessage());
-			} catch (IOException e) {
-				logger.error(e.getMessage());
-			}catch(BoxAPIException e){
-				logger.error(e.getResponseCode() + ": " + e.getResponse());
-			} catch (AuthorizationException e) {
-				logger.error(e.getMessage());
+			} catch(BoxAPIException e){
+				MigrationOutputter.getInstance().write(new MigrationErrorObject(baseFile2, baseBoxFolderId, metadataParser.getMetadata(baseFile2), e.getResponseCode() + ": " + e.getMessage()));
+			} catch(NullPointerException e){
+				MigrationOutputter.getInstance().write(new MigrationErrorObject(baseFile2, baseBoxFolderId, metadataParser.getMetadata(baseFile2), e.getMessage()));
+			} catch (Exception e) {
+				MigrationOutputter.getInstance().write(new MigrationErrorObject(baseFile2, baseBoxFolderId, metadataParser.getMetadata(baseFile2), e.getMessage()));
 			}
 		}
 
