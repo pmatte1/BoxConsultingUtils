@@ -2,9 +2,7 @@ package com.box.bc.migration;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
@@ -25,12 +23,13 @@ public class MultiThreadedUpload extends Thread {
 
 	//Configurations per execution
 	//TODO: Move to Configurations
-	protected static final int NUM_CONCURRENT_PROCESSORS = 500;
+	protected static final int NUM_CONCURRENT_PROCESSORS = 100;
 	protected static double MAX_QUEUE_SIZE = NUM_CONCURRENT_PROCESSORS*1;
 
 	//protected static File baseFolder = new File("C:/demo/TEST-PARSING");
-	protected static File baseFolder = new File("C:/demo");
-	protected static String topLevelFolder = "PM TEST FOLDER - Memory Eval";
+	//protected static File baseFolder = new File("C:/demo");
+	protected static File baseFolder = new File("C:/Varonis");
+	protected static String topLevelFolder = "Varonis Data";
 	//END - Configurations per execution
 
 	//Runtime Variables
@@ -149,14 +148,7 @@ public class MultiThreadedUpload extends Thread {
 
 	protected void uploadFiles(String baseBoxFolderId, File baseFile2) {
 
-//		while(((ThreadPoolExecutor)executor).getQueue().size()>= MAX_QUEUE_SIZE){
-//			try {
-//				Thread.sleep(1000);
-//			} catch (InterruptedException e) {
-//				logger.warn(e.getMessage());
-//			}
-//		}
-		Thread thread = new UploadFilesAndFolders(this.getName() + "-" + new Date().getTime(),baseBoxFolderId, baseFile2, this.threadMetrics, executor, metadataParser);
+		Thread thread = new UploadFilesAndFolders(this.getUploadThreadName(),baseBoxFolderId, baseFile2, this.threadMetrics, executor, metadataParser);
 		executor.execute(thread);
 
 		try {
@@ -180,6 +172,10 @@ public class MultiThreadedUpload extends Thread {
 			}
 		}		
 
+	}
+	
+	protected void setBaseBoxFolderId(String folderId){
+		baseBoxFolderId=folderId;
 	}
 
 	protected synchronized String getBaseBoxFolderId() throws AuthorizationException {
@@ -210,7 +206,7 @@ public class MultiThreadedUpload extends Thread {
 		return ((threadMetrics.getBytesUploaded()/1024)/(threadMetrics.getMsSpentUploading()/1000)) + "kb per second";
 	}
 
-	private static String getFileSizeOutput(long bytesUploaded2) {
+	protected static String getFileSizeOutput(long bytesUploaded2) {
 		int i=0;
 		String units = "";
 		while(bytesUploaded2>1024){
@@ -234,5 +230,8 @@ public class MultiThreadedUpload extends Thread {
 		return bytesUploaded2 + " " + units;
 	}
 
+	protected String getUploadThreadName() {
+		return super.getName();
+	}
 
 }
