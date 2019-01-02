@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This implementation ensures no metadata is applied to any
@@ -43,6 +44,11 @@ public class NoMetadataAppliedParser implements IMetadataParser {
 	 * metadata property file, since there is no metadata.
 	 */
 	public FilenameFilter getFileNameFilter() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	public Map<String, List<MetadataTemplateAndValues>> getAllMetadata() {
 		// TODO Auto-generated method stub
 		return null;
 	}

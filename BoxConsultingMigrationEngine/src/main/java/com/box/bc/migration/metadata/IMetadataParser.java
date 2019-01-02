@@ -3,6 +3,7 @@ package com.box.bc.migration.metadata;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.util.List;
+import java.util.Map;
 
 import com.box.sdk.Metadata;
 
@@ -34,6 +35,15 @@ public interface IMetadataParser {
 	 * @return List containing the metadata template(s), attribute(s) and values for the attribute(s)
 	 */
 	public List<MetadataTemplateAndValues> getMetadata(File fileToApplyMetadataTo);
+	
+	/**
+	 * Since there could be lists of items to apply metadata to in
+	 * 1 metadata file, this allows for implementing the correct logic
+	 * for mapping the File or Folder to the metadata from the file
+	 * 
+	 * @return Map of the List containing the metadata template(s), attribute(s) and values for the attribute(s)
+	 */
+	public Map<String, List<MetadataTemplateAndValues>> getAllMetadata();
 	
 	/**
 	 * This allows for the file to be parsed in whatever way is required to meet the

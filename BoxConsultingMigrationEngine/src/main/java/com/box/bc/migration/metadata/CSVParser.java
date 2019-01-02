@@ -50,6 +50,10 @@ public class CSVParser implements IMetadataParser {
 		}
 		return null;
 	}
+	
+	public Map<String, List<MetadataTemplateAndValues>> getAllMetadata(){
+		return theMap;
+	}
 
 	/**
 	 * Will parse the file and use the file_path from the metadata file to identify
