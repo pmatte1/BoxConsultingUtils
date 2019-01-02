@@ -21,6 +21,7 @@ import com.box.bc.migration.metadata.MetadataTemplateAndValues;
 import com.box.bc.migration.metadata.factory.MetadataParserFactory;
 import com.box.bc.migration.metadata.parser.CustomMetadata;
 import com.box.bc.migration.metrics.ThreadMetrics;
+import com.box.bc.migration.util.MetadataUtil;
 import com.box.bc.user.AppUserManager;
 import com.box.bc.util.FolderUtil;
 import com.box.bc.util.StopWatch;
@@ -38,7 +39,7 @@ public class UploadFilesAndFolders extends Thread {
 	private ThreadMetrics threadMetrics;
 	protected IMetadataParser metadataParser;
 	protected ExecutorService executor;
-
+	
 	private static final long MINIMUM_LARGE_UPLOAD_SIZE = (30L*1024L*1024L); //30 MB
 	private static int NUM_CONCURRENT_LARGE_UPLOAD_THREADS=20;
 	
@@ -78,7 +79,7 @@ public class UploadFilesAndFolders extends Thread {
 				this.threadMetrics.setCurrentAction("After Updating Folder Metrics");
 
 				this.threadMetrics.setCurrentAction("Adding Metadata - If Required");
-				applyMetadataTemplateAndVals(currentFolder, metadataParser.getMetadata(baseFile2));
+				new MetadataUtil().applyMetadataTemplateAndVals(currentFolder, metadataParser.getMetadata(baseFile2));
 				this.threadMetrics.setCurrentAction("Added Metadata - If Required");
 
 
@@ -141,7 +142,7 @@ public class UploadFilesAndFolders extends Thread {
 				}
 
 				if(createdFile != null){
-					applyMetadataTemplateAndVals(createdFile, metadataParser.getMetadata(baseFile2));
+					new MetadataUtil().applyMetadataTemplateAndVals(createdFile, metadataParser.getMetadata(baseFile2));
 				}
 
 				this.threadMetrics.setCurrentAction("End Upload for " + baseFile2.getAbsolutePath());
@@ -194,58 +195,5 @@ public class UploadFilesAndFolders extends Thread {
 
 	}
 
-	protected void applyMetadataTemplateAndVals(Info createdFile,
-			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
-		logger.info("Start applyMetadataTemplateAndVals to " + createdFile.getName());
-		applyMetadataTemplateAndVals(createdFile.getResource(), metadataTemplateAndVals);
-		logger.info("End applyMetadataTemplateAndVals");
-
-
-
-	}
-
-	protected void applyMetadataTemplateAndVals(BoxFile createdFile,
-			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
-		if(metadataTemplateAndVals != null){
-			logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
-			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
-				//If a template name is specified, then create with the template
-				//otherwise, just add as custom metadata
-				if(templateAndVal.getMetadataTemplateName() != null && 
-						!templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && 
-						templateAndVal.getMetadataValues() != null){
-					createdFile.createMetadata(templateAndVal.getMetadataTemplateName(),
-							templateAndVal.getMetadataValues());
-				}else{
-					if(templateAndVal.getMetadataValues() != null){
-						createdFile.createMetadata(templateAndVal.getMetadataValues());
-					}
-				}
-			}
-		}
-
-	}
-
-	protected void applyMetadataTemplateAndVals(BoxFolder createdFolder,
-			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
-		if(metadataTemplateAndVals != null){
-			logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
-			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
-				//If a template name is specified, then create with the template
-				//otherwise, just add as custom metadata
-				if(templateAndVal.getMetadataTemplateName() != null && 
-						!templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && 
-						templateAndVal.getMetadataValues() != null){
-					createdFolder.createMetadata(templateAndVal.getMetadataTemplateName(),
-							templateAndVal.getMetadataValues());
-				}else{
-					if(templateAndVal.getMetadataValues() != null){
-						createdFolder.createMetadata(templateAndVal.getMetadataValues());
-					}
-				}
-			}
-		}
-
-	}
 
 }
