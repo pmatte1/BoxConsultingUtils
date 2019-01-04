@@ -64,7 +64,7 @@ public class CSVParser implements IMetadataParser {
 		CSVReader reader = null;
 		try {
 			logger.debug("Loading CSV Reader");
-			reader = new CSVReader(new FileReader(metadataFile));
+			reader = new CSVReader(new FileReader(metadataFile), getSeparator());
 			logger.debug("Loaded CSV Reader");
 
 			List<IMetadataNameValueParser> metadataNameValueParserList = new ArrayList<IMetadataNameValueParser>();
@@ -152,6 +152,10 @@ public class CSVParser implements IMetadataParser {
 		}
 
 
+	}
+
+	protected char getSeparator() {
+		return ',';
 	}
 
 	/**
