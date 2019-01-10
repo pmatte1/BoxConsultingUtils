@@ -8,6 +8,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,13 +37,15 @@ import com.box.sdk.BoxItem;
 import com.box.sdk.BoxCollaboration.Role;
 import com.box.sdk.BoxFolder;
 import com.box.sdk.BoxUser;
+import com.box.sdk.MetadataTemplate;
+import com.box.sdk.MetadataTemplate.Field;
 
 public class ApplyMetadata extends Thread {
 	private static Logger logger = Logger.getLogger(ApplyMetadata.class);
 
 	//Configurations per execution
 	//TODO: Move to Configurations
-	protected static final int NUM_CONCURRENT_PROCESSORS = 10;
+	protected static final int NUM_CONCURRENT_PROCESSORS = Integer.parseInt(getProperties().getProperty("NUM_CONCURRENT_PROCESSORS", "10"));
 	protected static double MAX_QUEUE_SIZE = NUM_CONCURRENT_PROCESSORS*1;
 
 	//END - Configurations per execution
@@ -60,18 +63,19 @@ public class ApplyMetadata extends Thread {
 
 
 	public static void main(String args[]){
-//		BoxGlobalSettings.setConnectTimeout(30000);
-//		BoxGlobalSettings.setReadTimeout(120000);
-		
+		//		BoxGlobalSettings.setConnectTimeout(30000);
+		//		BoxGlobalSettings.setReadTimeout(120000);
+
 		try {
-			logger.warn("START - Setting up App Users");
+			logger.info("Setting up App Users...");
 			AppUserManager.getInstance();
-			logger.warn("END - Setting up App Users");
+			logger.info("Setting up App Users Complete");
 		} catch (AuthorizationException e1) {
 			logger.error(e1.getMessage(), e1);
 		}
 
 		//This will add the necessary permissions for the App User group
+		
 		setPermissions();
 
 		List<ApplyMetadata> mtuList = new ArrayList<ApplyMetadata>();
@@ -97,21 +101,13 @@ public class ApplyMetadata extends Thread {
 			}
 
 			keepRunning = false;
-			//logger.warn("*************************************************************************************************");
 
 			for(ApplyMetadata mtu : mtuList){
 
-				String lastAction = "";
-				if(mtu.getState().equals(State.TERMINATED)){
-					lastAction = " DURATION: " + (mtu.threadMetrics.getProcessingTime()/1000) + " seconds (" + (mtu.threadMetrics.getProcessingTime()/1000/60) + " minutes " + mtu.threadMetrics.getProcessingTime()/1000%60 + " seconds)";
-					//lastAction += " FILE SIZE: " + getFileSizeOutput(mtu.threadMetrics.getBytesUploaded());
-				}else{
+				if(!mtu.getState().equals(State.TERMINATED)){
 					keepRunning = true;
-					lastAction = " LAST ACTION: " + mtu.threadMetrics.getCurrentAction();
 				}
-				//logger.warn("Thread " + mtu.getName() + " - STATE: " +mtu.getState().name() + " - uploaded " + mtu.threadMetrics.getFilesUploaded() + " files at " + mtu.getRateOfUpload() + lastAction);
 			}
-			//logger.warn("*************************************************************************************************");
 			logger.warn("*************************************************************************************************");
 			logger.warn("Active Thread Count : " + ((ThreadPoolExecutor)executor).getActiveCount());
 			logger.warn("Queue Size          : " + ((ThreadPoolExecutor)executor).getQueue().size());
@@ -131,23 +127,39 @@ public class ApplyMetadata extends Thread {
 
 	protected static void setPermissions() {
 		//Check if there is a Migration User Specified
-		if(getMigrationUser()!=null){
+		String migrationUser = getMigrationUser();
+		logger.info("Checking for Migration User...");
+		if(migrationUser != null){
+			logger.info("Migration User found.  Updating permissions for " + migrationUser);
 			//If there is, then add the AppUserManager group to all top level folders that the user owns
 			try {
-				BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(getMigrationUser());
+				
+				BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(migrationUser);
 				List<BoxFolder> ownedFolders = getOwnedFolders(migrationUserApi);
 
 				for(BoxFolder folder: ownedFolders){
 					try{
 						folder.collaborate(AppUserManager.getInstance().getBoxGroup().getResource(), Role.CO_OWNER, false, false);
 						folderIdsWithCollabAdded.add(folder.getID());
+						logger.info("Permissions Updated for " + folder.getInfo().getName());
 					}catch(BoxAPIException e){
-						logger.warn(e.getResponseCode() + "-" + e.getResponse());
+						if(e.getResponseCode() != 409){
+							logger.warn(e.getResponseCode() + "-" + e.getResponse());
+						}else{
+							logger.info("Permissions Updated for " + folder.getInfo().getName());
+						}
 					}
 				}
 
 			} catch (AuthorizationException e) {
 				logger.error(e.getMessage(), e);			
+			}
+
+		}else{
+			try {
+				logger.info("No Migration User Specified.  Permission will need to be granted manually for the group " + AppUserManager.getInstance().getBoxGroup().getName());
+			} catch (AuthorizationException e) {
+				logger.error(e.getMessage());
 			}
 
 		}
@@ -157,23 +169,25 @@ public class ApplyMetadata extends Thread {
 	protected static List<BoxFolder> getOwnedFolders(
 			BoxAPIConnection migrationUserApi) {
 
+		logger.info("Getting Owned Folders");
 		List<BoxFolder> ownedFolders = new ArrayList<BoxFolder>();
 
 		BoxFolder baseFolder = new BoxFolder(migrationUserApi, "0");
-		Iterable<BoxItem.Info> children = baseFolder.getChildren();
+		Iterable<BoxItem.Info> children = baseFolder.getChildren(new String[]{"id","name","owned_by"});
 		BoxUser bu = BoxUser.getCurrentUser(migrationUserApi);
 
 		for(BoxItem.Info child:children){
 			if(child.getResource() instanceof BoxFolder){
-				BoxFolder updatedChild = new BoxFolder(migrationUserApi, child.getID());
-				logger.info("Owner: " + updatedChild.getInfo().getOwnedBy().getName() + " ID: " + updatedChild.getInfo().getOwnedBy().getID());
-				if(updatedChild.getInfo().getOwnedBy()!=null && updatedChild.getInfo().getOwnedBy().getID().equals(bu.getInfo().getID())){
-					ownedFolders.add((BoxFolder)updatedChild.getInfo().getResource());
+				//BoxFolder updatedChild = (BoxFolder) child.getResource();//new BoxFolder(migrationUserApi, child.getID());
+				logger.debug("Owner: " + child.getOwnedBy().getName() + " ID: " + child.getOwnedBy().getID());
+				if(child.getOwnedBy()!=null && child.getOwnedBy().getID().equals(bu.getInfo().getID())){
+					ownedFolders.add((BoxFolder)child.getResource());
 				}
 			}
 		}
 
 
+		logger.info("Found " + ownedFolders.size() + " folders owned by " + bu.getInfo(new String[0]).getName());
 		return ownedFolders;
 	}
 
@@ -216,21 +230,76 @@ public class ApplyMetadata extends Thread {
 		sw.start();
 
 		try {
+			verifyMetadataTemplate();
+			logger.debug("Metadata File: " + getMetadataFile());
 			applyMetadata(getMetadataFile());
 			sw.stop();
 			this.threadMetrics.setProcessingTime(sw.getElapsedTime());
-			logger.warn("Uploaded " + this.getName().trim() + " in " + (sw.getElapsedTime()/1000) + " seconds (" + (sw.getElapsedTime()/1000/60) + " minutes)");
+			logger.info("Uploaded " + this.getName().trim() + " in " + (sw.getElapsedTime()/1000) + " seconds (" + (sw.getElapsedTime()/1000/60) + " minutes)");
 		} catch (StopWatchException e) {
 
 		}
 
-		String bytesUploadedOutput = (this.threadMetrics.getBytesUploaded()/1024L/1024L > 1) ? "" + this.threadMetrics.getBytesUploaded()/1024L/1024L + " MB" : "" + this.threadMetrics.getBytesUploaded()/1024L + " KB";
-		logger.warn("Uploaded " + this.threadMetrics.getFilesUploaded() + " files totalling " + bytesUploadedOutput);
-		logger.warn("Rate of Upload: " + getRateOfUpload());
-		if(this.threadMetrics.getFoldersCreated()>0){
-			logger.warn("Created " + this.threadMetrics.getFoldersCreated() + " folders in " + (this.threadMetrics.getMsSpentCreatingFolders()/1000) + " seconds (average of " + ((this.threadMetrics.getMsSpentCreatingFolders()/1000)/this.threadMetrics.getFoldersCreated()) + " sec/folder)");
-		}
+		//		String bytesUploadedOutput = (this.threadMetrics.getBytesUploaded()/1024L/1024L > 1) ? "" + this.threadMetrics.getBytesUploaded()/1024L/1024L + " MB" : "" + this.threadMetrics.getBytesUploaded()/1024L + " KB";
+		//		logger.warn("Uploaded " + this.threadMetrics.getFilesUploaded() + " files totalling " + bytesUploadedOutput);
+		//		logger.warn("Rate of Upload: " + getRateOfUpload());
+		//		if(this.threadMetrics.getFoldersCreated()>0){
+		//			logger.warn("Created " + this.threadMetrics.getFoldersCreated() + " folders in " + (this.threadMetrics.getMsSpentCreatingFolders()/1000) + " seconds (average of " + ((this.threadMetrics.getMsSpentCreatingFolders()/1000)/this.threadMetrics.getFoldersCreated()) + " sec/folder)");
+		//		}
 		isRunning=false;
+
+	}
+
+	protected void verifyMetadataTemplate() {
+		boolean moreTemplates = true;
+		for(int i=0; moreTemplates; i++){
+			String templateName = getProperties().getProperty("template."+i+".name", null);
+ 
+			if(templateName != null){
+				String templateKey = getProperties().getProperty("template."+i+".templatekey", templateName.toLowerCase());
+				try {
+					//Create the template if it does not exist
+					BoxAPIConnection api = AuthorizationGenerator.getAppEnterpriseAPIConnection();
+					Iterable<MetadataTemplate> templates = MetadataTemplate.getEnterpriseMetadataTemplates(api, new String[0]);
+
+					MetadataTemplate template = null;
+					for(MetadataTemplate currentTemplate: templates){
+						if(currentTemplate.getTemplateKey().equals(templateKey)){
+							template = currentTemplate;
+							if(!template.getDisplayName().equals(templateName)){
+								logger.error("Name is not correct for the template with key " + templateKey + " .  The name is '" + template.getDisplayName() + "' but has '" + templateName + "' in the configuration file.  Please update manually.");
+							}
+							break;
+						}
+					}
+
+					if(template == null){
+						List<Field> fields = new ArrayList<Field>();
+						boolean moreAttributes = true;
+						for(int j=0; moreAttributes; j++){
+							Field fieldDef = new Field();
+							fieldDef.setKey(getProperties().getProperty("template."+ i +".attribute." + j + ".key", null));
+							fieldDef.setDisplayName(getProperties().getProperty("template."+ i +".attribute." + j + ".name", null));
+							fieldDef.setType(getProperties().getProperty("template."+ i +".attribute." + j + ".type", null));
+							fieldDef.setDescription(getProperties().getProperty("template."+ i +".attribute." + j + ".desc", ""));
+							if(fieldDef.getKey()!= null && fieldDef.getDisplayName()!=null){
+								fields.add(fieldDef);
+							}else{
+								moreAttributes=false;
+							}
+
+						}
+						template = MetadataTemplate.createMetadataTemplate(api, "enterprise", templateKey, templateName, false, fields);
+					}else{
+						logger.info("Template already exists, skipped creation");
+					}
+				} catch (AuthorizationException e) {
+					logger.error(e.getMessage(),e);
+				}
+			}else{
+				moreTemplates=false;
+			}
+		}
 
 	}
 
@@ -242,7 +311,7 @@ public class ApplyMetadata extends Thread {
 	}
 
 	protected static Properties getProperties(){
-		return PropertiesUtil.getPropertiesFromFile("apply_metadata.properties");
+		return PropertiesUtil.getPropertiesFromFile("metadata.properties");
 	}
 
 	private void applyMetadata(String metadataFile) {
@@ -257,8 +326,8 @@ public class ApplyMetadata extends Thread {
 
 		metadataParser.load(new File(metadataFile));
 		Map<String, List<MetadataTemplateAndValues>> theMap = metadataParser.getAllMetadata();
-
-		for(String key : theMap.keySet()){
+		Set<String> keySet = theMap.keySet();
+		for(String key : keySet){
 			threadMetrics.addFuture(startApplyMetadataThread(key, theMap.get(key)));
 		}
 
@@ -294,7 +363,7 @@ public class ApplyMetadata extends Thread {
 
 		if(((ThreadPoolExecutor)executor).getQueue().size()>= maxQueueSize){
 			try {
-				logger.info("Max Queue Size Reached.  Pausing before retry.");
+				logger.debug("Max Queue Size Reached.  Pausing before retry.");
 				Thread.sleep(myBackoff*1000);
 			} catch (InterruptedException e) {
 				logger.warn(e.getMessage());
