@@ -1,19 +1,11 @@
 package com.box.bc.migration.metadata.application;
 
-import java.util.Date;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ThreadPoolExecutor;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.Logger;
 
 import com.box.bc.exception.AuthorizationException;
-import com.box.bc.migration.UploadFilesAndFolders;
-import com.box.bc.migration.metadata.IMetadataParser;
 import com.box.bc.migration.metadata.MetadataTemplateAndValues;
-import com.box.bc.migration.metrics.ThreadMetrics;
 import com.box.bc.migration.util.MetadataUtil;
 import com.box.bc.user.AppUserManager;
 import com.box.sdk.BoxAPIException;
@@ -21,10 +13,6 @@ import com.box.sdk.BoxFile;
 
 public class MetadataApplicationThread extends Thread {
 	private static Logger logger = Logger.getLogger(MetadataApplicationThread.class);
-
-//	private ThreadMetrics threadMetrics;
-//	private ThreadPoolExecutor executor;
-//	private IMetadataParser metadataParser;
 
 	private String key;
 
