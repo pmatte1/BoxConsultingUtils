@@ -25,43 +25,84 @@ public class MetadataUtil {
 
 	}
 
+	public static int MAX_RETRIES = 3;
 	public void applyMetadataTemplateAndVals(BoxFile createdFile,
 			List<MetadataTemplateAndValues> metadataTemplateAndVals) {
 		if(metadataTemplateAndVals != null){
-			//logger.info("list is not null and is of size " + metadataTemplateAndVals.size());
 			for(MetadataTemplateAndValues templateAndVal : metadataTemplateAndVals){
-				try{
+				boolean doRetry = true;
+				int numRetries = 0;
+				while(doRetry){
 
-					//If a template name is specified, then create with the template
-					//otherwise, just add as custom metadata
-					if(templateAndVal.getMetadataTemplateName() != null && 
-							!templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && 
-							templateAndVal.getMetadataValues() != null){
-						createdFile.createMetadata(templateAndVal.getMetadataTemplateName(),
-								templateAndVal.getMetadataValues());
-					}else{
-						if(templateAndVal.getMetadataValues() != null){
-							createdFile.createMetadata(templateAndVal.getMetadataValues());
+					try{
+						addMetadataToFile(createdFile, templateAndVal);
+						doRetry=false;
+					}catch(BoxAPIException e){
+						if(e.getResponseCode()==409){
+							//Update metadata, and retry if request fails.
+							while(doRetry){
+								try{
+									Metadata existingMd = createdFile.getMetadata(templateAndVal.getMetadataTemplateName());
+									if(logger.isInfoEnabled()){
+										logger.warn("The template " + templateAndVal.getMetadataTemplateName() + " already exists on the object with the ID " + createdFile.getID() + "Metadata values before: " + existingMd);
+									}
+									Metadata updatedMd = templateAndVal.getMetadataValues();
+
+									List<String> propPaths = updatedMd.getPropertyPaths();
+									for(String path: propPaths){
+										existingMd.add(path, updatedMd.getValue(path).asString());
+									}
+
+									createdFile.updateMetadata(existingMd);
+								}catch(Exception ex){
+									if(numRetries>MAX_RETRIES){
+										logger.error("Failed More than " + MAX_RETRIES + " times: " + e.getMessage(),e);
+										doRetry=false;
+									}
+									numRetries++;
+								}
+							}
+						}else if(e.getResponseCode()==404){
+							logger.error("Cannot find the file with the ID " + createdFile.getID() + ".  Please verify permissions are set correctly.");
+							doRetry=false;
+						}else{
+						
+							if(numRetries>MAX_RETRIES){
+								if(e.getResponseCode()==0){
+									logger.error("Error Adding Metadata to " + createdFile.getID() + " ERROR: " + e.getResponseCode() + "-" + e.getResponse(), e);							
+								}else{
+									logger.error("Error Adding Metadata to " + createdFile.getID() + " ERROR: " + e.getResponseCode() + "-" + e.getResponse());
+								}
+
+							}
+						}
+					}catch(Exception e){
+						if(numRetries>MAX_RETRIES){
+							doRetry=false;
+						}else{
+							doRetry=true;
 						}
 					}
-				}catch(BoxAPIException e){
-					if(e.getResponseCode()==409){
-						logger.warn("The template " + templateAndVal.getMetadataTemplateName() + " already exists on the object with the ID " + createdFile.getID());
-						Metadata existingMd = createdFile.getMetadata(templateAndVal.getMetadataTemplateName());
-						logger.warn("Metadata values before: " + existingMd);
-						Metadata updatedMd = templateAndVal.getMetadataValues();
-
-						List<String> propPaths = updatedMd.getPropertyPaths();
-						for(String path: propPaths){
-							existingMd.add(path, updatedMd.get(path));
-						}
-
-						createdFile.updateMetadata(existingMd);
-					}else{
-						logger.error("Error Adding Metadata to " + createdFile.getID() + " ERROR: " + e.getResponseCode() + "-" + e.getResponse());
-					}
+					numRetries++;
 				}
 
+			}
+		}
+
+	}
+
+	protected void addMetadataToFile(BoxFile createdFile,
+			MetadataTemplateAndValues templateAndVal) {
+		//If a template name is specified, then create with the template
+		//otherwise, just add as custom metadata
+		if(templateAndVal.getMetadataTemplateName() != null && 
+				!templateAndVal.getMetadataTemplateName().equals(CustomMetadata.CUSTOM_METADATA_TEMPLATE_NAME) && 
+				templateAndVal.getMetadataValues() != null){
+			createdFile.createMetadata(templateAndVal.getMetadataTemplateName(),
+					templateAndVal.getMetadataValues());
+		}else{
+			if(templateAndVal.getMetadataValues() != null){
+				createdFile.createMetadata(templateAndVal.getMetadataValues());
 			}
 		}
 
@@ -94,7 +135,7 @@ public class MetadataUtil {
 
 						List<String> propPaths = updatedMd.getPropertyPaths();
 						for(String path: propPaths){
-							existingMd.add(path, updatedMd.get(path));
+							existingMd.add(path, updatedMd.getValue(path).asString());
 						}
 
 						createdFolder.updateMetadata(existingMd);
