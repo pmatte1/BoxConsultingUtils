@@ -44,7 +44,6 @@ public class ApplyMetadata extends Thread {
 	private static Logger logger = Logger.getLogger(ApplyMetadata.class);
 
 	//Configurations per execution
-	//TODO: Move to Configurations
 	protected static final int NUM_CONCURRENT_PROCESSORS = Integer.parseInt(getProperties().getProperty("NUM_CONCURRENT_PROCESSORS", "10"));
 	protected static double MAX_QUEUE_SIZE = NUM_CONCURRENT_PROCESSORS*1;
 
@@ -52,9 +51,7 @@ public class ApplyMetadata extends Thread {
 
 	//Runtime Variables
 	protected static ThreadPoolExecutor executor = (ThreadPoolExecutor)Executors.newFixedThreadPool(NUM_CONCURRENT_PROCESSORS);
-	//protected String baseBoxFolderId = null;
 	private boolean isRunning = false;
-	//private File baseFile;
 
 	protected ThreadMetrics threadMetrics = new ThreadMetrics();
 	protected IMetadataParser metadataParser = MetadataParserFactory.getMetadataParser();
@@ -63,8 +60,6 @@ public class ApplyMetadata extends Thread {
 
 
 	public static void main(String args[]){
-		//		BoxGlobalSettings.setConnectTimeout(30000);
-		//		BoxGlobalSettings.setReadTimeout(120000);
 
 		try {
 			logger.info("Setting up App Users...");
@@ -75,7 +70,7 @@ public class ApplyMetadata extends Thread {
 		}
 
 		//This will add the necessary permissions for the App User group
-		
+
 		setPermissions();
 
 		List<ApplyMetadata> mtuList = new ArrayList<ApplyMetadata>();
@@ -127,34 +122,35 @@ public class ApplyMetadata extends Thread {
 
 	protected static void setPermissions() {
 		//Check if there is a Migration User Specified
-		String migrationUser = getMigrationUser();
+		String[] migrationUsers = getMigrationUsers();
 		logger.info("Checking for Migration User...");
-		if(migrationUser != null){
-			logger.info("Migration User found.  Updating permissions for " + migrationUser);
-			//If there is, then add the AppUserManager group to all top level folders that the user owns
-			try {
-				
-				BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(migrationUser);
-				List<BoxFolder> ownedFolders = getOwnedFolders(migrationUserApi);
+		if(migrationUsers != null && migrationUsers.length>0){
+			for(String migrationUser : migrationUsers){
+				logger.info("Migration User found.  Updating permissions for " + migrationUsers);
+				//If there is, then add the AppUserManager group to all top level folders that the user owns
+				try {
 
-				for(BoxFolder folder: ownedFolders){
-					try{
-						folder.collaborate(AppUserManager.getInstance().getBoxGroup().getResource(), Role.CO_OWNER, false, false);
-						folderIdsWithCollabAdded.add(folder.getID());
-						logger.info("Permissions Updated for " + folder.getInfo().getName());
-					}catch(BoxAPIException e){
-						if(e.getResponseCode() != 409){
-							logger.warn(e.getResponseCode() + "-" + e.getResponse());
-						}else{
+					BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(migrationUser);
+					List<BoxFolder> ownedFolders = getOwnedFolders(migrationUserApi);
+
+					for(BoxFolder folder: ownedFolders){
+						try{
+							folder.collaborate(AppUserManager.getInstance().getBoxGroup().getResource(), Role.CO_OWNER, false, false);
+							folderIdsWithCollabAdded.add(folder.getID());
 							logger.info("Permissions Updated for " + folder.getInfo().getName());
+						}catch(BoxAPIException e){
+							if(e.getResponseCode() != 409){
+								logger.warn(e.getResponseCode() + "-" + e.getResponse());
+							}else{
+								logger.info("Permissions Updated for " + folder.getInfo().getName());
+							}
 						}
 					}
+
+				} catch (AuthorizationException e) {
+					logger.error(e.getMessage(), e);			
 				}
-
-			} catch (AuthorizationException e) {
-				logger.error(e.getMessage(), e);			
 			}
-
 		}else{
 			try {
 				logger.info("No Migration User Specified.  Permission will need to be granted manually for the group " + AppUserManager.getInstance().getBoxGroup().getName());
@@ -192,13 +188,17 @@ public class ApplyMetadata extends Thread {
 	}
 
 	protected static void removePermissions(){
-		if(getMigrationUser()!=null){
+		if(getMigrationUsers()!=null){
 
 			try {
-				BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(getMigrationUser());
-
+				BoxAPIConnection appApi = AuthorizationGenerator.getAppEnterpriseAPIConnection();
+				
 				for(String folderId : folderIdsWithCollabAdded){
-					BoxFolder folder = new BoxFolder(migrationUserApi, folderId);
+					BoxFolder folder = new BoxFolder(appApi, folderId);
+					String folderOwnerId = folder.getInfo().getOwnedBy().getID();
+					
+					BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(folderOwnerId);
+					folder = new BoxFolder(migrationUserApi, folderId);
 					Collection<BoxCollaboration.Info> colCollabInfo = folder.getCollaborations();
 					for(BoxCollaboration.Info collabInfo: colCollabInfo){
 						if(collabInfo.getAccessibleBy().getName().equals(AppUserManager.getInstance().getBoxGroup().getName())){
@@ -215,9 +215,19 @@ public class ApplyMetadata extends Thread {
 	}
 
 
-	protected static String getMigrationUser() {
+	protected static String[] getMigrationUsers() {
+		String[] returnVals = new String[0];
+		if(getProperties().getProperty("migrationuser")!=null){
+			return new String[]{getProperties().getProperty("migrationuser")};
+		}else{		
+			List<String> usersNamesList = new ArrayList<String>();
+			for(int i=0; getProperties().getProperty("migrationuser." + i) != null; i++){
+				usersNamesList.add(getProperties().getProperty("migrationuser." + i));
+			}
+			returnVals = usersNamesList.toArray(new String[usersNamesList.size()]);
+		}
 
-		return getProperties().getProperty("migrationuser");
+		return returnVals;
 	}
 
 	public ApplyMetadata(String string) {
@@ -240,12 +250,6 @@ public class ApplyMetadata extends Thread {
 
 		}
 
-		//		String bytesUploadedOutput = (this.threadMetrics.getBytesUploaded()/1024L/1024L > 1) ? "" + this.threadMetrics.getBytesUploaded()/1024L/1024L + " MB" : "" + this.threadMetrics.getBytesUploaded()/1024L + " KB";
-		//		logger.warn("Uploaded " + this.threadMetrics.getFilesUploaded() + " files totalling " + bytesUploadedOutput);
-		//		logger.warn("Rate of Upload: " + getRateOfUpload());
-		//		if(this.threadMetrics.getFoldersCreated()>0){
-		//			logger.warn("Created " + this.threadMetrics.getFoldersCreated() + " folders in " + (this.threadMetrics.getMsSpentCreatingFolders()/1000) + " seconds (average of " + ((this.threadMetrics.getMsSpentCreatingFolders()/1000)/this.threadMetrics.getFoldersCreated()) + " sec/folder)");
-		//		}
 		isRunning=false;
 
 	}
@@ -254,7 +258,7 @@ public class ApplyMetadata extends Thread {
 		boolean moreTemplates = true;
 		for(int i=0; moreTemplates; i++){
 			String templateName = getProperties().getProperty("template."+i+".name", null);
- 
+
 			if(templateName != null){
 				String templateKey = getProperties().getProperty("template."+i+".templatekey", templateName.toLowerCase());
 				try {
