@@ -111,11 +111,11 @@ public class ApplyMetadata extends Thread {
 			logger.warn("Completed Task Count: " + ((ThreadPoolExecutor)executor).getCompletedTaskCount());
 			logger.warn("*************************************************************************************************");
 		}
+		memMon.stopRunning();
 
 		//This will remove the added permissions for the App User group
 		removePermissions();
 
-		memMon.stopRunning();
 		executor.shutdown();
 
 	}
@@ -126,7 +126,7 @@ public class ApplyMetadata extends Thread {
 		logger.info("Checking for Migration User...");
 		if(migrationUsers != null && migrationUsers.length>0){
 			for(String migrationUser : migrationUsers){
-				logger.info("Migration User found.  Updating permissions for " + migrationUsers);
+				logger.info("Migration User found.  Updating permissions for " + migrationUser);
 				//If there is, then add the AppUserManager group to all top level folders that the user owns
 				try {
 
@@ -143,6 +143,7 @@ public class ApplyMetadata extends Thread {
 								logger.warn(e.getResponseCode() + "-" + e.getResponse());
 							}else{
 								logger.info("Permissions Updated for " + folder.getInfo().getName());
+								folderIdsWithCollabAdded.add(folder.getID());
 							}
 						}
 					}
@@ -188,21 +189,23 @@ public class ApplyMetadata extends Thread {
 	}
 
 	protected static void removePermissions(){
-		if(getMigrationUsers()!=null){
+		if(folderIdsWithCollabAdded!=null && folderIdsWithCollabAdded.size()>0){
 
 			try {
-				BoxAPIConnection appApi = AuthorizationGenerator.getAppEnterpriseAPIConnection();
+				BoxAPIConnection appApi = AppUserManager.getInstance().getAppUser().getAPIConnection();//AuthorizationGenerator.getAppEnterpriseAPIConnection();
 				
 				for(String folderId : folderIdsWithCollabAdded){
 					BoxFolder folder = new BoxFolder(appApi, folderId);
-					String folderOwnerId = folder.getInfo().getOwnedBy().getID();
-					
-					BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(folderOwnerId);
-					folder = new BoxFolder(migrationUserApi, folderId);
+//					String folderOwnerId = folder.getInfo().getOwnedBy().getID();
+//					
+//					BoxAPIConnection migrationUserApi = AuthorizationGenerator.getAPIConnection(folderOwnerId);
+//					folder = new BoxFolder(migrationUserApi, folderId);
+					String folderName = folder.getInfo().getName();
 					Collection<BoxCollaboration.Info> colCollabInfo = folder.getCollaborations();
 					for(BoxCollaboration.Info collabInfo: colCollabInfo){
 						if(collabInfo.getAccessibleBy().getName().equals(AppUserManager.getInstance().getBoxGroup().getName())){
 							collabInfo.getResource().delete();
+							logger.info("Removed " + AppUserManager.getInstance().getBoxGroup().getName() + " from folder named " + folderName);
 						}
 					}
 
