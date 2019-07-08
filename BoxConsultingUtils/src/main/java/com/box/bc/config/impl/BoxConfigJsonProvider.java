@@ -1,10 +1,8 @@
 package com.box.bc.config.impl;
 
-import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Reader;
-import java.net.URL;
-
 import org.apache.log4j.Logger;
 
 import com.box.bc.config.BoxConfigProvider;
@@ -22,14 +20,8 @@ public class BoxConfigJsonProvider implements BoxConfigProvider {
 		Reader reader = null;
 		BoxConfig boxConfig = null;
 		try {
-			URL url = this.getClass().getClassLoader().getResource(configFile);//ClassLoader.getSystemClassLoader().getSystemResource("config.json");
-			logger.debug("URL: " + url);
-			if(url != null){
-				reader = new FileReader(url.getFile());
-				boxConfig = BoxConfig.readFrom(reader);
-			}else{
-				throw new AuthorizationException("Cannot Find the file named " + configFile);
-			}
+			reader = new InputStreamReader(this.getClass().getClassLoader().getResourceAsStream(configFile));
+			boxConfig = BoxConfig.readFrom(reader);
 		} catch (IOException e) {
 			logger.error(e.getMessage(), e);
 		} catch(BoxAPIException e){
@@ -40,7 +32,7 @@ public class BoxConfigJsonProvider implements BoxConfigProvider {
 				try {
 					reader.close();
 				} catch (IOException e) {
-					
+
 				}
 			}
 		}
