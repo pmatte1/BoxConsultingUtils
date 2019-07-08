@@ -2,7 +2,7 @@ package com.box.bc.config;
 
 import java.util.Properties;
 
-import com.box.bc.config.impl.BoxConfigTestProvider;
+import com.box.bc.config.impl.BoxConfigJsonProvider;
 import com.box.bc.util.PropertiesUtil;
 
 public class BoxConfigProviderFactory {
@@ -15,7 +15,7 @@ public class BoxConfigProviderFactory {
 			
 		}
 		
-		return new BoxConfigTestProvider();
+		return new BoxConfigJsonProvider();
 	}
 
 }
