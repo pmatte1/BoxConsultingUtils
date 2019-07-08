@@ -22,7 +22,7 @@ public class AppUser extends BoxUser{
 	 * Logging implementation
 	 */
 	private static Logger logger = Logger.getLogger(AppUser.class);
-	private static long refreshInterval = 60000L;//3300000L;
+	private static long refreshInterval = 55*60000L;//3300000L;
 	private BoxAPIConnection api;
 	private Date apiConnectionCreationDate;
 
