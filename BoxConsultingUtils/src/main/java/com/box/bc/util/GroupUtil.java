@@ -2,8 +2,11 @@ package com.box.bc.util;
 
 import java.util.Iterator;
 
+import org.apache.log4j.Logger;
+
 import com.box.bc.exception.AuthorizationException;
 import com.box.bc.generator.AuthorizationGenerator;
+import com.box.sdk.BoxAPIException;
 import com.box.sdk.BoxGroup;
 
 /**
@@ -14,6 +17,7 @@ import com.box.sdk.BoxGroup;
  *
  */
 public class GroupUtil {
+	private static Logger logger = Logger.getLogger(GroupUtil.class);
 
 	/**
 	 * Method to retrieve a Box Group by name. If a group with the name is not created
@@ -55,7 +59,20 @@ public class GroupUtil {
 		BoxGroup.Info groupInfo = getGroup(groupName);
 		
 		if(groupInfo == null){
-			groupInfo = createGroup(groupName);
+			try{
+				groupInfo = createGroup(groupName);
+			}catch(BoxAPIException e){
+				logger.info(e.getResponse());
+				if(e.getResponseCode()==409){
+					Iterable<BoxGroup.Info> groupInfos = BoxGroup.getAllGroups(AuthorizationGenerator.getAppEnterpriseAPIConnection());
+					for(BoxGroup.Info localGroupInfo : groupInfos){
+						if(localGroupInfo.getName().equals(groupName)){
+							groupInfo=localGroupInfo;
+							break;
+						}
+					}
+				}
+			}
 		}
 		
 		return groupInfo;
