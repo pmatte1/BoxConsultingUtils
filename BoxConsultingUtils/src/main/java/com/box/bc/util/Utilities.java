@@ -13,7 +13,7 @@ public class Utilities {
 			//Get the ID from the response and get folder
 			logger.debug("Conflict Error: " + e.getResponse());
 			JSONObject responseJson = new JSONObject(e.getResponse());
-			return responseJson.getJSONObject("context_info").getJSONArray("conflicts").getJSONObject(0).getString("id");
+			return responseJson.getJSONObject("context_info").getJSONObject("conflicts").getString("id");
 		}
 		
 		return null;
