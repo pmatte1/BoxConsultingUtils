@@ -115,9 +115,15 @@ public class AuthorizationGenerator {
 					boxUserId = getBoxUserFromUserName(userId);
 				}
 
-				api = new BoxDeveloperEditionAPIConnection(boxUserId, DeveloperEditionEntityType.USER, boxConfig,
-						accessTokenCache);
-				apiType = "APPUSER - " + userId;
+				try{
+					api = new BoxDeveloperEditionAPIConnection(boxUserId, DeveloperEditionEntityType.USER, boxConfig,
+							accessTokenCache);
+					apiType = "APPUSER - " + userId;
+				}catch(BoxAPIException e){
+					api = BoxDeveloperEditionAPIConnection.getAppEnterpriseConnection(boxConfig, accessTokenCache);
+					api.asUser(boxUserId);
+					apiType = "APPUSER - " + userId;
+				}
 			}
 			logger.info("API: " + api.getAccessToken() + " API TYPE: " + apiType);
 
