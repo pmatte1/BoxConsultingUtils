@@ -119,13 +119,13 @@ public class AuthorizationGenerator {
 					api = new BoxDeveloperEditionAPIConnection(boxUserId, DeveloperEditionEntityType.USER, boxConfig,
 							accessTokenCache);
 					apiType = "APPUSER - " + userId;
+					logger.info("API: " + api.getAccessToken() + " API TYPE: " + apiType);
 				}catch(BoxAPIException e){
 					api = BoxDeveloperEditionAPIConnection.getAppEnterpriseConnection(boxConfig, accessTokenCache);
 					api.asUser(boxUserId);
 					apiType = "APPUSER - " + userId;
 				}
 			}
-			logger.info("API: " + api.getAccessToken() + " API TYPE: " + apiType);
 
 		} catch(BoxAPIException e){
 			logger.error(e.getResponseCode() + ": " + e.getResponse(),e);
