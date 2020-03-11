@@ -29,6 +29,7 @@ public class CSVParser implements IMetadataParser {
 	private static Logger logger = Logger.getLogger(CSVParser.class);
 
 	protected Map<String, List<MetadataTemplateAndValues>> theMap = new HashMap<String, List<MetadataTemplateAndValues>>();
+	protected List<IMetadataNameValueParser> metadataNameValueParserList = new ArrayList<IMetadataNameValueParser>();
 
 	/**
 	 * Will return true if the name ends in .csv
@@ -63,81 +64,21 @@ public class CSVParser implements IMetadataParser {
 
 		CSVReader reader = null;
 		try {
-			logger.debug("Loading CSV Reader");
+			logger.debug("Loading CSV Reader with Separator " + getSeparator());
 			reader = new CSVReader(new FileReader(metadataFile), getSeparator());
 			logger.debug("Loaded CSV Reader");
 
-			List<IMetadataNameValueParser> metadataNameValueParserList = new ArrayList<IMetadataNameValueParser>();
 
 			String[] line;
 			for (int i=0; (line = reader.readNext()) != null; i++) {
 
 				if(i==0){
 					logger.debug("Parsing Header Line");
-					for(int j=0; j<line.length; j++){
-						logger.debug("Loading Parser for Column " + j + " (" + line[j] + ")");
-						metadataNameValueParserList.add(MetadataNameValueParserFactory.getParser(line[j]));
-						logger.debug("Loaded Parser for Column " + j + " (" + line[j] + ")");
-					}
+					loadHeaderValues(line);
 					logger.debug("Parsed Header Line");
 
 				}else{
-					String keyValue = null;
-					List<MetadataTemplateAndValues> mtavs = new ArrayList<MetadataTemplateAndValues>();
-					for(int j=0; j<line.length; j++){
-						//Get the parser created for the header in the same index
-						IMetadataNameValueParser mnvp = metadataNameValueParserList.get(j);
-						
-						//If it is metadata, load it into the list of Metadata Templates and Values
-						if(mnvp.isMetadata()){
-							
-							String templateName = mnvp.getTemplateName();
-							Metadata md = new Metadata();
-							boolean isInList = false;
-							
-							//Check if the template already exists in the list, and get
-							//the metadata values if it does
-							for(MetadataTemplateAndValues mtav : mtavs){
-								if(mtav.getMetadataTemplateName().equals(templateName)){
-									md=mtav.getMetadataValues();
-									isInList = true;
-								}
-							}
-
-							//Get the metadata from the parser, based on the value from 
-							//the parsed line of the CSV
-							Metadata parsedMd = mnvp.getMetaData(line[j]);
-
-							//If the template does not exist, create a new instance of the
-							//MetadataTemplateAndValues object, and add to the list
-							if(!isInList){
-								MetadataTemplateAndValues mtav = new MetadataTemplateAndValues();
-								//Set template name
-								mtav.setMetadataTemplateName(templateName);
-								
-								//Set the metadata values
-								mtav.setMetadataValues(parsedMd);
-								
-								//Add it to the list of MetadataTemplateAndValues
-								mtavs.add(mtav);
-							}else{
-								//Add the metadata information to the existing Metadata object
-								for(String propertyPath : parsedMd.getPropertyPaths()){
-									md.add(propertyPath, parsedMd.get(propertyPath));
-								}
-
-							}
-						}else{
-							//If this is the file_path column, add the value as the key, so it can
-							//retrieve the list based on the file or folder's path later
-							if(mnvp.getAttributeName().equals("file_path")){
-
-								keyValue = new File(line[j]).getPath();
-							}
-						}
-
-					}
-					theMap.put(keyValue, mtavs);
+					loadBody(line);
 				}
 			}
 		} catch (IOException e) {
@@ -152,6 +93,102 @@ public class CSVParser implements IMetadataParser {
 		}
 
 
+	}
+
+	/**
+	 * Loads the internal Map to hold the Name - Value pairs
+	 * 
+	 * @param line
+	 */
+	protected void loadBody(String[] line) {
+		String keyValue = null;
+		List<MetadataTemplateAndValues> mtavs = new ArrayList<MetadataTemplateAndValues>();
+		for(int j=0; j<line.length; j++){
+			//Get the parser created for the header in the same index
+			IMetadataNameValueParser mnvp = metadataNameValueParserList.get(j);
+			
+			//If it is metadata, load it into the list of Metadata Templates and Values
+			if(mnvp.isMetadata()){
+				
+				String templateName = mnvp.getTemplateName();
+				Metadata md = new Metadata();
+				boolean isInList = false;
+				
+				//Check if the template already exists in the list, and get
+				//the metadata values if it does
+				for(MetadataTemplateAndValues mtav : mtavs){
+					if(mtav.getMetadataTemplateName().equals(templateName)){
+						md=mtav.getMetadataValues();
+						isInList = true;
+					}
+				}
+
+				//Get the metadata from the parser, based on the value from 
+				//the parsed line of the CSV
+				Metadata parsedMd = mnvp.getMetaData(line[j]);
+
+				//If the template does not exist, create a new instance of the
+				//MetadataTemplateAndValues object, and add to the list
+				if(!isInList){
+					MetadataTemplateAndValues mtav = new MetadataTemplateAndValues();
+					//Set template name
+					mtav.setMetadataTemplateName(templateName);
+					
+					//Set the metadata values
+					mtav.setMetadataValues(parsedMd);
+					
+					//Add it to the list of MetadataTemplateAndValues
+					mtavs.add(mtav);
+				}else{
+					//Add the metadata information to the existing Metadata object
+					for(String propertyPath : parsedMd.getPropertyPaths()){
+						md.add(propertyPath, parsedMd.get(propertyPath));
+					}
+
+				}
+				if(isKey(mnvp.getAttributeName())){
+					keyValue = line[j];
+				}
+			}else{
+				//If this is the file_path column, add the value as the key, so it can
+				//retrieve the list based on the file or folder's path later
+				if(mnvp.getAttributeName().equals("file_path")){
+
+					keyValue = new File(line[j]).getPath();
+				}
+			}
+
+		}
+		if(keyValue == null){
+			
+		}
+		theMap.put(keyValue, mtavs);
+		
+	}
+
+	String[] allKeys = new String[]{"file_path","transaction#"};
+	protected boolean isKey(String string) {
+		for(String key: allKeys){
+			if(key.toLowerCase().equals(string.toLowerCase())){
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Parses the Header Line to retrieve the parsers for the individual cells
+	 * 
+	 * @param line
+	 * @return List of MetadataNameValueParsers for the cells, based on the header line
+	 */
+	protected void loadHeaderValues(String[] line) {
+		for(int j=0; j<line.length; j++){
+			logger.debug("Loading Parser for Column " + j + " (" + line[j] + ")");
+			metadataNameValueParserList.add(MetadataNameValueParserFactory.getParser(line[j], propertiesFileName));
+			logger.debug("Loaded Parser for Column " + j + " (" + line[j] + ")");
+		}
+		
 	}
 
 	protected char getSeparator() {
@@ -173,6 +210,13 @@ public class CSVParser implements IMetadataParser {
 		};
 		
 		return fnf;
+	}
+
+	String propertiesFileName = null;
+	public void load(File metadataFile, String propertiesFileName) {
+		this.propertiesFileName = propertiesFileName;
+		load(metadataFile);
+		
 	}
 
 }

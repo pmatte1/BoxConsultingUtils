@@ -53,4 +53,8 @@ public class NoMetadataAppliedParser implements IMetadataParser {
 		return null;
 	}
 
+	public void load(File metadataFile, String propertiesFileName) {
+		load(metadataFile);		
+	}
+
 }

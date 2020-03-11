@@ -54,6 +54,15 @@ public interface IMetadataParser {
 	public void load(File metadataFile);
 
 	/**
+	 * This allows for the file to be parsed in whatever way is required to meet the
+	 * requirements based on the metadata file standards
+	 * 
+	 * @param metadataFile - The file containing the metadata
+	 * @param propertiesFileName - The name of the properties file to read configurations from
+	 */
+	public void load(File metadataFile, String propertiesFileName);
+
+	/**
 	 * This is create a FilenameFilter that can be used to identify any
 	 * Metadata files ahead of time, so they can be loaded prior to iterating over
 	 * the rest of the results.  
@@ -64,4 +73,5 @@ public interface IMetadataParser {
 	 * @return FilenameFilter object that will retrieve all the metadata files in a directory
 	 */
 	public FilenameFilter getFileNameFilter();
+
 }
