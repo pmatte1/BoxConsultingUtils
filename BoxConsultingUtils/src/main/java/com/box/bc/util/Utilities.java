@@ -18,4 +18,18 @@ public class Utilities {
 		
 		return null;
 	}
+
+	public static String getFolderIdFrom409Exception(BoxAPIException e){
+		try{
+		if(e.getResponseCode() == 409){
+			//Get the ID from the response and get folder
+			logger.debug("Conflict Error: " + e.getResponse());
+			JSONObject responseJson = new JSONObject(e.getResponse());
+			return responseJson.getJSONObject("context_info").getJSONArray("conflicts").getJSONObject(0).getString("id");
+		}
+		}catch(Exception ex){
+			logger.error(ex.getMessage(), ex);
+		}
+		return null;
+	}
 }

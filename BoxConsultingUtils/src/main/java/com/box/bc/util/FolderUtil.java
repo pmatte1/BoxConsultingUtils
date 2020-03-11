@@ -70,7 +70,7 @@ public class FolderUtil {
 		}catch(BoxAPIException e){
 			if(e.getResponseCode()==409){
 				//TODO Get the ID from the response body and return instance of BoxFolder
-				logger.warn(e.getResponseCode() + ": " + e.getResponse());
+				logger.warn("Error creating " + folderName + ": " + e.getResponseCode() + ": " + e.getResponse());
 			}
 		} catch (StopWatchException e) {
 			logger.error(e.getMessage(), e);
